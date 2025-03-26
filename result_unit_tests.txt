@@ -1,0 +1,93 @@
+Sure, I'll create a set of unit tests using the `unittest` framework in Python, along with `pyspark` mock data to validate different scenarios for the provided function `calculate_total_price_by_date`. Below is the complete code:
+
+```python
+import unittest
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, F
+
+# Define schemas and sample data
+products_schema = ["Product_ID", "Price"]
+transactions_schema = ["Transaction_Date", "Transaction_ID", "Product_ID", "Quantity"]
+
+products_data = [
+    (101, 5.99),
+    (102, 2.99),
+    (103, 7.49)
+]
+
+transactions_data = [
+    ("2023-01-01", 1001, 101, 2),
+    ("2023-01-01", 1002, 102, 5),
+    ("2023-01-02", 1003, 101, 3),
+    ("2023-01-02", 1004, 103, 1),
+]
+
+# Function to be tested
+def calculate_total_price_by_date(df_products, df_transactions):
+    # Join the products and transactions DataFrames on Product_ID
+    df_joined = df_transactions.join(df_products, df_transactions.Product_ID == df_products.Product_ID)
+    
+    # Calculate the total price for each transaction
+    df_total_price = df_joined.withColumn("Total_Price", F.col("Quantity") * F.col("Price"))
+    
+    # Group by Transaction_Date and calculate the total values
+    df_total_by_date = df_total_price.groupBy("Transaction_Date").agg(
+        F.sum("Quantity").alias("Total_Quantity"),
+        F.sum("Total_Price").alias("Total_Price"),
+    )
+    
+    return df_total_by_date
+
+# Test class
+class TestCalculateTotalPriceByDate(unittest.TestCase):
+    
+    def setUp(self):
+        self.spark = SparkSession.builder \
+            .appName("TestCalculateTotalPriceByDate") \
+            .getOrCreate()
+        
+        # Create test data frames from mock data and schemas
+        self.products_df = self.spark.createDataFrame(products_data, schema=products_schema)
+        self.transactions_df = self.spark.createDataFrame(transactions_data, schema=transactions_schema)
+
+    def tearDown(self):
+        self.spark.stop()
+
+    def test_calculate_total_price_by_date(self):
+        # Call the function with the data frames
+        result = calculate_total_price_by_date(self.products_df, self.transactions_df)
+        
+        # Collect the result and convert to list of tuples for easier comparison
+        result_list = result.collect()
+        
+        expected_result = [
+            ("2023-01-01", 7, 89.95),
+            ("2023-01-02", 4, 24.96)
+        ]
+        
+        # Compare the result with expected output
+        self.assertEqual(result_list, expected_result)
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+### Explanation:
+1. **Setup and Teardown:**
+   - `setUp` method initializes a Spark session and creates test data frames using the provided schemas.
+   - `tearDown` method stops the Spark session after all tests are run.
+
+2. **Test Method:**
+   - The `test_calculate_total_price_by_date` method calls the function with the created data frames.
+   - It then collects the result, converts it to a list of tuples for easy comparison.
+   - Finally, it compares the collected result with an expected output.
+
+### How to Run:
+1. Ensure you have Spark installed and configured in your environment.
+2. Save the code in a Python file (e.g., `test_calculate_total_price_by_date.py`).
+3. Run the script using Python: 
+   ```sh
+   python test_calculate_total_price_by_date.py
+   ```
+
+This will execute the unit tests, validating the function against predefined scenarios.

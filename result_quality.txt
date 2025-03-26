@@ -1,0 +1,77 @@
+To create data quality checks for the `calculate_total_price_by_date` function, we need to ensure that the input DataFrames (`df_products` and `df_transactions`) are well-formed and contain the necessary columns. Here�s a step-by-step approach:
+
+1. **Check if the required columns exist in both DataFrames:**
+   - Ensure `Product_ID`, `Price`, and `Quantity` exist in `df_transactions`.
+   - Ensure `Product_ID` exists in `df_products`.
+
+2. **Validate data types of key columns:**
+   - Check that `Transaction_Date` is a date or timestamp.
+   - Verify that `Quantity` and `Price` are numeric.
+
+3. **Check for missing values:**
+   - Ensure there are no missing values in the critical columns (`Product_ID`, `Price`, `Quantity`, and `Transaction_Date`).
+
+4. **Test with sample data:**
+   - Provide sample input DataFrames to test the function under various scenarios.
+
+Let's implement these checks:
+
+```python
+from pyspark.sql import functions as F
+from pyspark.sql.types import DateType, TimestampType
+
+def check_data_quality(df_products, df_transactions):
+    # Check if required columns exist in both dataframes
+    missing_columns_products = set(['Product_ID']) - set(df_products.columns)
+    missing_columns_transactions = set(['Product_ID', 'Price', 'Quantity']) - set(df_transactions.columns)
+
+    if missing_columns_products:
+        raise ValueError(f"Missing columns in df_products: {missing_columns_products}")
+
+    if missing_columns_transactions:
+        raise ValueError(f"Missing columns in df_transactions: {missing_columns_transactions}")
+
+    # Check data types of key columns
+    if not (df_transactions.select(F.col("Transaction_Date")).dtypes[0][1] == 'date' or 
+            df_transactions.select(F.col("Transaction_Date")).dtypes[0][1] == 'timestamp'):
+        raise ValueError("Transaction_Date should be a date or timestamp")
+
+    if not all(df_transactions.select(F.col("Quantity"), F.col("Price")).dtypes[i][1] in ['int', 'long', 'float'] for i in range(2)):
+        raise ValueError("Quantity and Price should be numeric")
+
+    # Check for missing values
+    null_columns_products = [col for col in df_products.columns if df_products.filter(F.col(col).isNull()).count() > 0]
+    null_columns_transactions = [col for col in df_transactions.columns if df_transactions.filter(F.col(col).isNull()).count() > 0]
+
+    if null_columns_products:
+        raise ValueError(f"Missing values found in df_products: {null_columns_products}")
+
+    if null_columns_transactions:
+        raise ValueError(f"Missing values found in df_transactions: {null_columns_transactions}")
+
+# Sample data for testing
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.appName("DataQualityChecks").getOrCreate()
+
+df_products = spark.createDataFrame([
+    (1, "Product A", 10.0),
+    (2, "Product B", 20.0)
+], ["Product_ID", "Product_Name", "Price"])
+
+df_transactions = spark.createDataFrame([
+    (1, "2023-01-01", 5, 10.0),
+    (2, "2023-01-02", 3, 20.0)
+], ["Product_ID", "Transaction_Date", "Quantity", "Price"])
+
+# Run the data quality checks
+check_data_quality(df_products, df_transactions)
+
+# Now run your function
+result = calculate_total_price_by_date(df_products, df_transactions)
+print(result.show())
+```
+
+This script performs several checks to ensure that the input DataFrames are in a suitable state for processing. If any of these conditions fail, an appropriate error message is raised.
+
+You can modify and expand this script according to your specific requirements or additional scenarios you might want to test.
